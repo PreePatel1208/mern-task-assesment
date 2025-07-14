@@ -174,7 +174,6 @@ export async function editProduct(
   const occasionIds = value.occasion.map((o) => o.value).join(",");
 
   const { categories, id, ...rest } = value;
-  console.log("value.id", value);
 
   try {
     await db.transaction().execute(async (trx) => {
@@ -213,32 +212,6 @@ export async function editProduct(
 }
 
 
-
-// export async function getProducts(pageNo = 1, pageSize = DEFAULT_PAGE_SIZE) {
-//   try {
-//     let products;
-//     let dbQuery = db.selectFrom("products").selectAll("products");
-
-//     const { count } = await dbQuery
-//       .select(sql`COUNT(DISTINCT products.id) as count`)
-//       .executeTakeFirst();
-
-//     const lastPage = Math.ceil(count / pageSize);
-
-//     products = await dbQuery
-//       .distinct()
-//       .offset((pageNo - 1) * pageSize)
-//       .limit(pageSize)
-//       .execute();
-
-//     const numOfResultsOnCurPage = products.length;
-
-//     return { products, count, lastPage, numOfResultsOnCurPage };
-//   } catch (error) {
-//     throw error;
-//   }
-// }
-
 export async function getProducts({
   pageNo = 1,
   pageSize = DEFAULT_PAGE_SIZE,
@@ -250,7 +223,8 @@ export async function getProducts({
   maxPrice = 999999,
   gender,
   occasions,
-  discount,
+  discountMin,
+  discountMax,
 }: {
   pageNo: number;
   pageSize: number;
@@ -262,10 +236,16 @@ export async function getProducts({
   maxPrice?: number;
   gender?: string;
   occasions?: string;
-  discount?: number;
+  discountMin?: number;
+  discountMax?: number;
 }) {
   try {
     let dbQuery = db.selectFrom("products").selectAll();
+
+    if (sortBy) {
+      const [sort, order] = sortBy.split("-");
+      dbQuery = dbQuery.orderBy(`products.${sort}`, order);
+    }
 
     if (selectedBrands.length > 0) {
       const likeClauses: string[] = [];
@@ -294,23 +274,13 @@ export async function getProducts({
         )
       );
     }
-if(maxPrice){
 
-  dbQuery = dbQuery.where("products.price", "<=", maxPrice);
-}
-
-    if (gender && gender.toLowerCase() !== "none") {
-      dbQuery = dbQuery.where("products.gender", "=", gender.toLowerCase());
-    }
-
-    if (occasions && occasions.trim() !== "") {
-      // Break the incoming string into individual tokens
+    if (occasions &&occasions.trim() !== "" ) {
       const occasionList = occasions
         .split(",")
         .map((o) => o.trim())
         .filter((o) => o.length > 0);
 
-      if (occasionList.length > 0) {
         const occasionClauses = occasionList.flatMap((val) => [
           `products.occasion LIKE '${val},%'`,   
           `products.occasion LIKE '%,${val},%'`, 
@@ -322,19 +292,28 @@ if(maxPrice){
 
         dbQuery = dbQuery.where(sql`${sql.raw(occasionRawSql)}`);
       }
-    }
-    console.log("SQL Preview:", dbQuery.compile().sql);
+    
 
-    if (discount) {
-      dbQuery = dbQuery.where("products.discount", ">=", discount);
-    }
-
-    if (sortBy) {
-      const [sort, order] = sortBy.split("-");
-      dbQuery = dbQuery.orderBy(`products.${sort}`, order);
+    if (gender && gender.toLowerCase() !== "none") {
+      dbQuery = dbQuery.where("products.gender", "=", gender.toLowerCase());
     }
 
-    // ✅ Total count for pagination
+    if (discountMin !== undefined && discountMax !== undefined) {
+      dbQuery = dbQuery.where("products.discount", ">=", discountMin)
+        .where("products.discount", "<=", discountMax);
+    } else if (discountMin !== undefined) {
+      dbQuery = dbQuery.where("products.discount", ">=", discountMin);
+    } else if (discountMax !== undefined) {
+      dbQuery = dbQuery.where("products.discount", "<=", discountMax);
+    }
+    if (minPrice) {
+      dbQuery = dbQuery.where("products.price", ">=", minPrice);
+    }
+
+    if (maxPrice) {
+      dbQuery = dbQuery.where("products.price", "<=", maxPrice);
+    }
+
     const { count } = await dbQuery
       .clearSelect()
       .select(sql`COUNT(DISTINCT products.id) as count`)
@@ -342,7 +321,6 @@ if(maxPrice){
 
     const lastPage = Math.ceil(count / pageSize);
 
-    // ✅ Actual paginated product list
     const products = await dbQuery
       .distinct()
       .offset((pageNo - 1) * pageSize)
@@ -360,7 +338,6 @@ if(maxPrice){
 
 
 export const getProduct = cache(async function getProduct(productId: number) {
-  // console.log("run");
   try {
     const product = await db
       .selectFrom("products")

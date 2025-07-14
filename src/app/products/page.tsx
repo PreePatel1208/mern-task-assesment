@@ -21,10 +21,17 @@ export default async function Products({
   const selectedCategories = categoryId
     ? categoryId.split(",").map((id) => Number(id))
     : [];
+let discountMin: number | undefined;
+let discountMax: number | undefined;
 
-  const discountValue = discount
-    ? Number(discount.split("-")[0]) // Use starting range like 6 from "6-10"
-    : undefined;
+if (discount) {
+  const [minStr, maxStr] = discount.split("-").map((v) => v.trim());
+  discountMin = Number(minStr);
+  discountMax = maxStr !== undefined ? Number(maxStr) : undefined;
+}
+  // const discountValue = discount
+  //   ? Number(discount.split("-")[0]) // Use starting range like 6 from "6-10"
+  //   : undefined;
 
   const maxPrice = priceRangeTo ? Number(priceRangeTo) : 2000;
 
@@ -37,7 +44,7 @@ console.log("selectedBrands",selectedBrands);
       pageNo: +page,
       pageSize: +pageSize,
       sortBy,
-      selectedBrands, selectedCategories, gender, occasions, maxPrice, discount: discountValue
+      selectedBrands, selectedCategories, gender, occasions, maxPrice, discountMin,discountMax
     }
   );
   console.log("products, lastPage, numOfResultsOnCurPage,count", lastPage, numOfResultsOnCurPage, count);
